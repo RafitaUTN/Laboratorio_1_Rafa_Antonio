@@ -1,16 +1,29 @@
-# Inventario del Lab 1 (ITIEL-13).
+# Inventario del Lab 1 (ITIEL-13 · Grupo 01 · III-2026).
 #
-# Nunca contraseñas acá: se leen de las variables de entorno
-# LAB_PASS_MIKROTIK y LAB_PASS_CISCO; si no existen, se piden por consola.
+# NUNCA se guardan contraseñas acá. Se leen de variables de entorno:
+#   LAB_PASS_MT_LAB     -> MikroTik  (nombre "mt-lab"  -> MT_LAB)
+#   LAB_PASS_CISCO_LAB  -> Cisco     (nombre "cisco-lab" -> CISCO_LAB)
+# Si la variable no existe, el script la pide por consola con getpass.
+#
+# Campos por equipo:
+#   nombre       nombre corto del equipo (define la variable de entorno)
+#   host         IP administrativa
+#   port         puerto SSH
+#   device_type  driver de Netmiko (agregar otro fabricante = otra entrada)
+#   usuario      usuario SSH
+#   rol          "lectura" (solo consulta) o "escritura" (puede configurar)
 
-mikrotik:
-  device_type: mikrotik_routeros
-  host: 10.60.30.202
-  port: 22
-  username: lab-ssh
+equipos:
+  - nombre: mt-lab
+    host: 10.60.30.202
+    port: 22
+    device_type: mikrotik_routeros
+    usuario: lab-ssh
+    rol: escritura
 
-cisco:
-  device_type: cisco_ios
-  host: 10.60.30.203
-  port: 22
-  username: lab-ssh
+  - nombre: cisco-lab
+    host: 10.60.30.203
+    port: 22
+    device_type: cisco_ios
+    usuario: lab-ssh
+    rol: lectura
