@@ -25,8 +25,9 @@ USO
     python rutas_estaticas.py --limpiar   # deshace los cambios
 
 CREDENCIALES
-    Nunca en el código: se leen de las variables LAB_PASS_MIKROTIK y
-    LAB_PASS_CISCO; si no existen, se piden por consola con getpass.
+    Nunca en el código: se leen de las variables LAB_PASS_MT_LAB y
+    LAB_PASS_CISCO_LAB (compatibles con LAB_PASS_MIKROTIK / LAB_PASS_CISCO);
+    si no existen, se piden por consola con getpass.
 """
 import argparse
 import getpass
@@ -66,20 +67,46 @@ def clave(variable, texto):
 
 
 def equipo(inventario, device_type):
-    """Devuelve los datos del equipo del inventario según su device_type."""
-    for datos in inventario.values():
+    """Devuelve los datos del equipo del inventario según su device_type.
+
+    Acepta el formato nuevo ({'equipos': [ {...}, ... ]}) y el antiguo
+    ({'mikrotik': {...}, 'cisco': {...}}).
+    """
+    for datos in _lista_equipos(inventario):
         if datos.get("device_type") == device_type:
             return datos
     raise KeyError(f"No hay ningún equipo con device_type={device_type} en el inventario")
 
 
+def _lista_equipos(inventario):
+    """Normaliza el YAML a una lista de equipos."""
+    if isinstance(inventario, dict) and isinstance(inventario.get("equipos"), list):
+        return inventario["equipos"]
+    if isinstance(inventario, dict):
+        # Formato antiguo: cada clave es el nombre del equipo.
+        return [dict(valor, nombre=clave) for clave, valor in inventario.items()]
+    raise ValueError("inventario.yaml: se esperaba un diccionario con 'equipos'")
+
+
 def conexion(datos, password):
     """Arma el diccionario de parámetros que espera ConnectHandler."""
     d = dict(datos)
+    d["username"] = d.get("username") or d.pop("usuario", None)
+    for campo in ("nombre", "rol"):
+        d.pop(campo, None)
     d["password"] = password
     d.setdefault("conn_timeout", 20)
     d.setdefault("fast_cli", False)
     return d
+
+
+def clave(*variables, texto):
+    """Contraseña desde el entorno (en orden); si no existe, la pide sin mostrarla."""
+    for variable in variables:
+        valor = os.getenv(variable)
+        if valor:
+            return valor
+    return getpass.getpass(texto)
 
 
 def mascara(cidr):
@@ -258,10 +285,18 @@ def main():
     mt_ip = datos_mt["host"]
     cs_ip = datos_cs["host"]
 
-    conn_mt = conexion(datos_mt, clave("LAB_PASS_MIKROTIK", "Contraseña del MikroTik: "))
-    conn_cs = conexion(datos_cs, clave("LAB_PASS_CISCO", "Contraseña del Cisco: "))
+    conn_mt = conexion(
+        datos_mt,
+        clave("LAB_PASS_MT_LAB", "LAB_PASS_MIKROTIK", texto="Contraseña del MikroTik: "),
+    )
+    conn_cs = conexion(
+        datos_cs,
+        clave("LAB_PASS_CISCO_LAB", "LAB_PASS_CISCO", texto="Contraseña del Cisco: "),
+    )
     # lab-ssh entra con privilegio 1: para configurar hace falta 'enable'.
-    conn_cs["secret"] = os.getenv("LAB_SECRET_CISCO", conn_cs["password"])
+    conn_cs["secret"] = (
+        os.getenv("LAB_SECRET_CISCO_LAB") or os.getenv("LAB_SECRET_CISCO") or conn_cs["password"]
+    )
 
     try:
         with ConnectHandler(**conn_mt) as c_mt, ConnectHandler(**conn_cs) as c_cs:
