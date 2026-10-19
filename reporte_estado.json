@@ -1,0 +1,96 @@
+[
+  {
+    "nombre": "mt-lab",
+    "host": "10.60.30.202",
+    "device_type": "mikrotik_routeros",
+    "rol": "escritura",
+    "timestamp": "2026-10-18T21:54:37-06:00",
+    "estado": "ok",
+    "datos": {
+      "hostname": {
+        "name": "CHR"
+      },
+      "uptime": {
+        "uptime": "1h6m11s",
+        "version": "7.23.7 (long-term)",
+        "architecture-name": "x86_64",
+        "cpu": "QEMU",
+        "cpu-count": "1",
+        "free-memory": "167.1MiB",
+        "total-memory": "384.0MiB"
+      },
+      "interfaces": [
+        {
+          "address": "10.60.30.202/24",
+          "interface": "ether1",
+          "network": "10.60.30.0",
+          "comment": ""
+        },
+        {
+          "address": "172.16.20.1/24",
+          "interface": "ether8",
+          "network": "172.16.20.0",
+          "comment": ""
+        },
+        {
+          "address": "10.253.0.10/32",
+          "interface": "lo-ssh-10",
+          "network": "10.253.0.10",
+          "comment": "LAB1-ITIEL13"
+        }
+      ],
+      "default_route": {
+        "gateway": "10.60.30.1",
+        "distance": "1",
+        "status": "",
+        "active": true
+      }
+    }
+  },
+  {
+    "nombre": "cisco-lab",
+    "host": "10.60.30.203",
+    "device_type": "cisco_ios",
+    "rol": "lectura",
+    "timestamp": "2026-10-18T21:54:39-06:00",
+    "estado": "ok",
+    "datos": {
+      "hostname": {
+        "hostname": "R2"
+      },
+      "uptime": {
+        "uptime": "29 minutes"
+      },
+      "interfaces": [
+        {
+          "interface": "FastEthernet0/0",
+          "ip": "10.60.30.203",
+          "ok": "YES",
+          "method": "NVRAM",
+          "status": "up",
+          "protocol": "up"
+        },
+        {
+          "interface": "FastEthernet0/1",
+          "ip": "172.16.10.1",
+          "ok": "YES",
+          "method": "NVRAM",
+          "status": "up",
+          "protocol": "up"
+        },
+        {
+          "interface": "NVI0",
+          "ip": "10.60.30.203",
+          "ok": "YES",
+          "method": "unset",
+          "status": "up",
+          "protocol": "up"
+        }
+      ],
+      "default_route": {
+        "gateway": "10.60.30.1",
+        "network": "0.0.0.0/0"
+      }
+    }
+  }
+]
