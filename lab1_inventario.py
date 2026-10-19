@@ -125,10 +125,19 @@ def parsear_terse(texto: str) -> list[dict[str, str]]:
 
 def parse_mikrotik_identity(texto: str) -> dict[str, str]:
     """/system identity print -> {'name': 'mt-lab'}."""
-    for linea in (texto or "").splitlines():
+    lineas = (texto or "").splitlines()
+    for i, linea in enumerate(lineas):
         datos = texto_a_dict(linea)
         if "name" in datos:
-            return {"name": datos["name"]}
+            valor = datos["name"]
+            # RouterOS puede partir un nombre largo en varias líneas según el
+            # ancho de la consola; se concatenan las líneas de continuación.
+            for cont in lineas[i + 1:]:
+                cont = cont.strip()
+                if not cont or ":" in cont:
+                    break
+                valor += cont
+            return {"name": valor}
     return {}
 
 
@@ -160,15 +169,19 @@ def parse_mikrotik_addresses(texto: str) -> list[dict[str, str]]:
 
 def parse_mikrotik_default_route(texto: str) -> dict[str, Any]:
     """Ruta por defecto (terse) -> {'gateway': ..., 'distance': ...} o {}."""
-    for registro in parsear_terse(texto):
-        dst = registro.get("dst-address", "")
-        if dst in ("0.0.0.0/0", "0.0.0.0/0"):
-            return {
-                "gateway": registro.get("gateway", ""),
-                "distance": registro.get("distance", ""),
-                "status": registro.get("status", ""),
-                "active": registro.get("active", "") in ("yes", "true", True),
-            }
+    for linea in (texto or "").splitlines():
+        if "dst-address=0.0.0.0/0" not in linea:
+            continue
+        registro = parsear_terse(linea)
+        fila = registro[0] if registro else {}
+        # Los flags van como token sin '=' al inicio (p. ej. "As" = activa/estática).
+        flags = " ".join(t for t in linea.split() if "=" not in t)
+        return {
+            "gateway": fila.get("gateway", ""),
+            "distance": fila.get("distance", ""),
+            "status": fila.get("status", ""),
+            "active": "A" in flags,
+        }
     return {}
 
 
@@ -220,6 +233,11 @@ def parse_cisco_default_route(texto: str) -> dict[str, Any]:
             if match:
                 gateway = match.group(1)
         match = re.search(r"via (\d+\.\d+\.\d+\.\d+)", linea)
+        if match and not gateway:
+            gateway = match.group(1)
+        # Algunos IOS muestran el next-hop como "* 10.60.30.1" (sin "via")
+        # cuando se consulta una ruta puntual: show ip route 0.0.0.0.
+        match = re.search(r"^\s*\*\s+(\d+\.\d+\.\d+\.\d+)", linea)
         if match and not gateway:
             gateway = match.group(1)
         match = re.search(r"0\.0\.0\.0/0", linea)
@@ -505,11 +523,11 @@ def aplicar_configuracion_mikrotik(conn: Any, n: int) -> list[str]:
 
     # 2) IP 10.253.0.<N>/32 sobre esa interfaz.
     existe_ip = _mt_len(
-        conn, f'/ip address find address={objetivo["ip"]} interface={objetivo["bridge"]}'
+        conn, f'/ip address find address="{objetivo["ip"]}" interface="{objetivo["bridge"]}"'
     )
     if existe_ip == 0:
         # Si la IP existe sobre OTRA interfaz no se toca (podría ser ajena).
-        ip_en_otra = _mt_len(conn, f'/ip address find address={objetivo["ip"]}')
+        ip_en_otra = _mt_len(conn, f'/ip address find address="{objetivo["ip"]}"')
         if ip_en_otra:
             raise RuntimeError(
                 f"La IP {objetivo['ip']} ya existe en otra interfaz; "
@@ -533,7 +551,7 @@ def verificar_configuracion(conn: Any, n: int) -> bool:
         conn, f'/interface bridge find name="{objetivo["bridge"]}"'
     ) == 1
     ip_ok = _mt_len(
-        conn, f'/ip address find address={objetivo["ip"]} interface={objetivo["bridge"]}'
+        conn, f'/ip address find address="{objetivo["ip"]}" interface="{objetivo["bridge"]}"'
     ) == 1
     return bridge_ok and ip_ok
 
@@ -542,9 +560,9 @@ def limpiar_configuracion(conn: Any, n: int) -> list[str]:
     """Elimina SOLO los objetos de este estudiante (nombre exacto + IP exacta)."""
     objetivo = objetivos_mikrotik(n)
     cambios: list[str] = []
-    if _mt_len(conn, f'/ip address find address={objetivo["ip"]}'):
+    if _mt_len(conn, f'/ip address find address="{objetivo["ip"]}"'):
         conn.send_config_set(
-            [f'/ip address remove [find address={objetivo["ip"]}]']
+            [f'/ip address remove [find address="{objetivo["ip"]}"]']
         )
         cambios.append(f"IP {objetivo['ip']} eliminada")
     if _mt_len(conn, f'/interface bridge find name="{objetivo["bridge"]}"'):
