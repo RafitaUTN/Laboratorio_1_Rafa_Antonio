@@ -1,2 +1,6 @@
 netmiko>=4.8
 PyYAML>=6.0
+# El IOS 12.4 del Cisco 3725 solo ofrece diffie-hellman-group1-sha1 (SHA1).
+# paramiko >= 4 elimina ese kex, asi que se fija < 4 para poder negociar SSH
+# con el equipo del laboratorio sin tocar la configuracion del router.
+paramiko>=3.5.1,<4
