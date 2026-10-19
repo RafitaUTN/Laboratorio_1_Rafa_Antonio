@@ -54,6 +54,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+> **Compatibilidad SSH con el Cisco 3725:** el IOS 12.4 de este equipo solo
+> ofrece el algoritmo de intercambio de claves `diffie-hellman-group1-sha1`
+> (SHA1). `paramiko >= 4` lo elimina y falla con *"no acceptable kex
+> algorithm"*, por eso `requirements.txt` fija `paramiko >= 3.5.1, < 4`.
+> No hay que cambiar nada en el router.
+
 ## 5. Inventario
 
 `inventario.yaml` define los equipos **fuera del código**:
@@ -75,6 +81,18 @@ equipos:
 ```
 
 **Nunca** se incluye `password:`, `secret:` ni nada similar. Agregar otro fabricante = agregar otra entrada con su `device_type` y sus comandos en el diccionario `COMMANDS` de `lab1_inventario.py`.
+
+### 5.1 Credenciales del laboratorio
+
+Credenciales **compartidas de cátedra** (el repositorio es privado). El script no las lee de aquí: usa `LAB_PASS_*` o `getpass`.
+
+| Equipo | IP | Acceso | Usuario | Contraseña |
+|---|---|---|---|---|
+| R1 MikroTik RouterOS v7 (CHR) | 10.60.30.202 | SSH (22) | `lab-ssh` | `lab-ssh` |
+| R2 Cisco IOS 3725 | 10.60.30.203 | SSH (22) / `enable` | `lab-ssh` | `lab-ssh` |
+| PC1 / PC2 (VPCS) | — | consola GNS3 | — | — |
+
+> En el MikroTik la cuenta `admin` aparece expirada; use siempre `lab-ssh`.
 
 ## 6. Variables de entorno
 
@@ -151,6 +169,36 @@ LAB_PASS_MT_LAB=incorrecta python lab1_inventario.py --estado
 
 El script registra el error de autenticación de ese equipo, continúa con los demás, genera el reporte y sale con código 1.
 
+### 7.5 Comprobación manual (SSH y consolas GNS3)
+
+SSH desde el host Linux. El MikroTik rechaza `pubkey` y el IOS 12.4 exige kex/cifrado antiguos, así que hay que forzar las opciones:
+
+```bash
+# MikroTik (RouterOS): OpenSSH ofrece pubkey primero y RouterOS lo deniega
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no lab-ssh@10.60.30.202
+
+# Cisco IOS 12.4 (kex/cipher/hmac antiguos)
+ssh -o KexAlgorithms=+diffie-hellman-group1-sha1 -o HostKeyAlgorithms=+ssh-rsa \
+    -o PubkeyAuthentication=no -c aes128-cbc -o MACs=+hmac-sha1 lab-ssh@10.60.30.203
+```
+
+Consolas del GNS3 (telnet local en el host que corre GNS3): R1 MikroTik = **5002**, R2 Cisco = **5005**, PC1 = **5006**, PC2 = **5008**.
+
+```bash
+telnet localhost 5005          # consola del Cisco (R2)
+```
+
+Verificación rápida de conectividad una vez aplicado todo:
+
+```bash
+# desde PC1
+ping 172.16.20.100             # PC2
+ping 8.8.8.8                   # Internet
+# desde PC2
+ping 172.16.10.11              # PC1
+ping 8.8.8.8                   # Internet
+```
+
 ## 8. Rutas estáticas (PC1 ↔ PC2)
 
 `rutas_estaticas.py` resuelve: cada router solo conoce su LAN, así que el ping entre PC1 y PC2 se pierde en el gateway 10.60.30.1.
@@ -195,7 +243,7 @@ Laboratorio_1_Rafa_Antonio/
 
 ## 11. Seguridad
 
-- Cero contraseñas en código, YAML, JSON, README, logs o Git.
+- Cero contraseñas en el código, el inventario YAML, el JSON de reporte y los logs. La única excepción es la tabla de la sección **5.1**, limitada a las credenciales **compartidas de cátedra** del laboratorio (repositorio privado).
 - Contraseñas solo por variable de entorno o `getpass` (nunca `input()`).
 - `ConnectHandler` siempre dentro de un bloque `with`.
 - Manejo de `NetmikoTimeoutException`, `NetmikoAuthenticationException` y `Exception` **por equipo**: un fallo no detiene el resto.
