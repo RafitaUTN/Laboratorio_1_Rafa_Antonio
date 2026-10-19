@@ -4,7 +4,7 @@
 rutas_estaticas.py — DEMO de rutas estáticas MikroTik <-> Cisco (ITIEL-13 · Lab 1)
 
 TOPOLOGÍA
-    PC1 --(172.16.10.0/24, gw .1)-- Cisco Fa1/0     [.203 en 10.60.30.0/24]
+    PC1 --(172.16.10.0/24, gw .1)-- Cisco Fa0/1     [.203 en 10.60.30.0/24]
     PC2 --(172.16.20.0/24, gw .1)-- MikroTik ether8 [.202 en 10.60.30.0/24]
     Interconexión (transit): 10.60.30.0/24 (gateway .1)
 
@@ -52,7 +52,7 @@ except Exception:
 # --- 2) Datos de la topología (constantes) -----------------------------------
 LAN_CISCO = "172.16.10.0/24"     # LAN de PC1 (detrás del Cisco)
 LAN_MT = "172.16.20.0/24"        # LAN de PC2 (detrás del MikroTik)
-GW_PC1 = "172.16.10.1"           # gateway de PC1 (Cisco Fa1/0)
+GW_PC1 = "172.16.10.1"           # gateway de PC1 (Cisco Fa0/1)
 GW_PC2 = "172.16.20.1"           # gateway de PC2 (MikroTik ether8)
 ETIQUETA = "RUTAS-LAB"           # firma: todo lo que crea el script lleva esto
 
