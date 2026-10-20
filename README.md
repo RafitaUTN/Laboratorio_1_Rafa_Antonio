@@ -24,22 +24,22 @@ Integrar Linux, venv, SSH y Netmiko en un script que:
                        |
                     SW1 / LAN 10.60.30.0/24  (gateway .1)
                    /                          \
-     MikroTik RouterOS v7                 Cisco IOS 3725
-     10.60.30.202 (ether1)                10.60.30.203 (Fa0/0)
-     rol: escritura                        rol: lectura
-     usuario: lab-ssh                      usuario: lab-ssh
-          |                                     |
-     PC2 (172.16.20.0/24, gw .1)          PC1 (172.16.10.0/24, gw .1)
+      MikroTik RouterOS v7                 Cisco IOS 3725
+      10.60.30.202 (ether1)                10.60.30.203 (Fa0/0)
+      rol: escritura + REST (lectura)       rol: lectura
+      usuario: lab-ssh                      usuario: lab-ssh
+           |                                     |
+      PC2 (172.16.20.0/24, gw .1)          PC1 (172.16.10.0/24, gw .1)
 ```
 
-El equipo Linux donde corre el script está **fuera** de GNS3 y accede al laboratorio por Tailscale.
+El equipo Linux donde corre el script es el **anfitrión** de GNS3: se conecta al laboratorio por el bridge `br-lab`, donde tiene la IP `10.60.30.1` (gateway del lab).
 
 Los equipos del GNS3 son **compartidos**: todo lo creado por este proyecto lleva la etiqueta `LAB1-ITIEL13` y el nombre exacto `lo-ssh-<N>`, donde `<N>` es el número de lista del estudiante.
 
 ## 3. Requisitos
 
 - Linux, WSL o VM con Python 3.10+.
-- Acceso SSH al laboratorio (Tailscale activo hacia la red 10.60.30.0/24).
+- Acceso al laboratorio: el anfitrión tiene la IP `10.60.30.1` en el bridge `br-lab` (gateway del lab).
 - Usuario `lab-ssh` y su clave (entregada en clase).
 - Git (opcional pero recomendado).
 
@@ -78,21 +78,50 @@ equipos:
     device_type: cisco_ios
     usuario: lab-ssh
     rol: lectura
+  # Extra (+10): el mismo MikroTik por su API REST, coexistiendo con SSH.
+  - nombre: mt-lab-rest
+    host: 10.60.30.202
+    port: 443
+    device_type: mikrotik_rest
+    usuario: lab-ssh
+    rol: lectura
+    credencial: mt-lab        # reutiliza LAB_PASS_MT_LAB
 ```
 
-**Nunca** se incluye `password:`, `secret:` ni nada similar. Agregar otro fabricante = agregar otra entrada con su `device_type` y sus comandos en el diccionario `COMMANDS` de `lab1_inventario.py`.
+**Nunca** se incluye `password:`, `secret:` ni nada similar. Agregar otro fabricante = agregar otra entrada con su `device_type` y sus comandos en el diccionario `COMMANDS` de `lab1_inventario.py`. El campo opcional `credencial: <equipo>` reutiliza la variable `LAB_PASS_*` de otro equipo para no repetir el secreto.
 
 ### 5.1 Credenciales del laboratorio
 
-Credenciales **compartidas de cátedra** (el repositorio es privado). El script no las lee de aquí: usa `LAB_PASS_*` o `getpass`.
+El usuario de todos los equipos es **`lab-ssh`**. La contraseña **no se escribe en el repositorio**: el script la toma de `LAB_PASS_*` o la pide con `getpass` (sección 6). La clave de cátedra se entrega en clase.
 
 | Equipo | IP | Acceso | Usuario | Contraseña |
 |---|---|---|---|---|
-| R1 MikroTik RouterOS v7 (CHR) | 10.60.30.202 | SSH (22) | `lab-ssh` | `lab-ssh` |
-| R2 Cisco IOS 3725 | 10.60.30.203 | SSH (22) / `enable` | `lab-ssh` | `lab-ssh` |
+| R1 MikroTik RouterOS v7 (CHR) | 10.60.30.202 | SSH (22) / REST (443) | `lab-ssh` | `LAB_PASS_MT_LAB` |
+| R2 Cisco IOS 3725 | 10.60.30.203 | SSH (22) / `enable` | `lab-ssh` | `LAB_PASS_CISCO_LAB` |
 | PC1 / PC2 (VPCS) | — | consola GNS3 | — | — |
 
 > En el MikroTik la cuenta `admin` aparece expirada; use siempre `lab-ssh`.
+
+### 5.2 Extra (+10): API REST del MikroTik
+
+La entrada `mt-lab-rest` consulta el **mismo** CHR por su **API REST** (`/rest`, JSON sobre HTTPS) en vez de SSH, demostrando que **SSH y REST conviven** en el inventario. El script usa `requests` con autenticación básica y **`verify=False`** porque el certificado del laboratorio es **autofirmado** (la advertencia de `urllib3` se silencia en el código).
+
+Para habilitar REST en el CHR (requisito previo, se corre una sola vez por consola SSH):
+
+```
+/certificate add name=lab1-ca common-name=lab1-ca key-usage=key-cert-sign,crl-sign days-valid=3650
+/certificate sign lab1-ca
+/certificate add name=lab1-rest-cert common-name=10.60.30.202 key-usage=tls-server days-valid=3650
+/certificate sign lab1-rest-cert ca=lab1-ca
+/ip service set www-ssl certificate=lab1-rest-cert disabled=no
+```
+
+Comprobación directa:
+
+```bash
+curl -k -u lab-ssh:"$LAB_PASS_MT_LAB" https://10.60.30.202/rest/system/identity
+# {"name":"CHR"}
+```
 
 ## 6. Variables de entorno
 
@@ -102,6 +131,8 @@ La contraseña de cada equipo se lee de `LAB_PASS_<NOMBRE>` (nombre en mayúscul
 export LAB_PASS_MT_LAB='...'
 export LAB_PASS_CISCO_LAB='...'
 ```
+
+La entrada REST `mt-lab-rest` no necesita variable propia: usa `credencial: mt-lab` y por tanto reutiliza `LAB_PASS_MT_LAB`.
 
 Opcional (solo para `rutas_estaticas.py`, si el enable secret difiere de la clave SSH):
 
@@ -146,6 +177,8 @@ python lab1_inventario.py
 5. Solo en `rol: escritura` (MikroTik) asegura: bridge `lo-ssh-<N>` sin puertos, IP `10.253.0.<N>/32` y comentario `LAB1-ITIEL13 N=<N>`.
 6. Verifica con un comando de lectura.
 7. Genera el reporte y la tabla.
+
+El inventario incluye además `mt-lab-rest`, que se consulta por **REST** (HTTPS, sección 5.2) y aparece en el reporte junto a los equipos SSH.
 
 **Segunda ejecución:** debe informar `sin cambios (ya estaba configurado)` y no debe crear nada duplicado.
 
@@ -225,14 +258,14 @@ PC2> ping 172.16.10.11     # PC1 (si su IP es otra, use la real)
 ## 9. Reporte y logs
 
 - `reporte_estado.json`: lista de equipos con `nombre`, `host`, `device_type`, `rol`, `timestamp`, `estado` (`ok`/`error`) y `datos` ya parseados (hostname, uptime, interfaces, ruta por defecto).
-- `logs/mt-lab.log` y `logs/cisco-lab.log`: `session_log` de Netmiko, uno por equipo (excluidos del repositorio por `.gitignore`).
+- `logs/<equipo>.log`: un registro por equipo (`session_log` de Netmiko en SSH; peticiones/respuestas JSON en REST). Se versionan en el repositorio porque **se verificó que no contienen credenciales**.
 
 ## 10. Estructura del proyecto
 
 ```
 Laboratorio_1_Rafa_Antonio/
 ├── README.md              # este archivo
-├── requirements.txt       # netmiko, pyyaml
+├── requirements.txt       # netmiko, pyyaml, requests
 ├── .gitignore
 ├── inventario.yaml        # SIN contraseñas
 ├── lab1_inventario.py     # script principal (R1–R6)
@@ -243,7 +276,8 @@ Laboratorio_1_Rafa_Antonio/
 
 ## 11. Seguridad
 
-- Cero contraseñas en el código, el inventario YAML, el JSON de reporte y los logs. La única excepción es la tabla de la sección **5.1**, limitada a las credenciales **compartidas de cátedra** del laboratorio (repositorio privado).
+- Cero contraseñas en el código, el inventario YAML, el JSON de reporte y los logs (versionados). La contraseña entra siempre por variable de entorno o `getpass`.
+- La API REST usa HTTPS con `verify=False` **solo** por el certificado autofirmado del laboratorio; en producción se verificaría el certificado.
 - Contraseñas solo por variable de entorno o `getpass` (nunca `input()`).
 - `ConnectHandler` siempre dentro de un bloque `with`.
 - Manejo de `NetmikoTimeoutException`, `NetmikoAuthenticationException` y `Exception` **por equipo**: un fallo no detiene el resto.
