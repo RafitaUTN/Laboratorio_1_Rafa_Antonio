@@ -1,0 +1,32 @@
+GET /rest/system/identity
+{"name":"CHR"}
+GET /rest/system/resource
+{"architecture-name":"x86_64","board-name":"CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)","build-time":"2026-09-16 12:19:15","cpu":"QEMU","cpu-count":"1","cpu-frequency":"2496","cpu-load":"1","factory-software":"7.1","free-hdd-space":"72548352","free-memory":"176361472","platform":"MikroTik","total-hdd-space":"93564928","total-memory":"402653184","uptime":"5m17s","version":"7.23.7 (long-term)","write-sect-since-reboot":"992","write-sect-total":"992"}
+GET /rest/ip/address
+[{".id":"*1","actual-interface":"ether1","address":"10.60.30.202/24","disabled":"false","dynamic":"false","interface":"ether1","invalid":"false","network":"10.60.30.0","slave":"false","vrf":"main"},{".id":"*2","actual-interface":"ether8","address":"172.16.20.1/24","disabled":"false","dynamic":"false","interface":"ether8","invalid":"false","network":"172.16.20.0","slave":"false","vrf":"main"},{".id":"*4","actual-interface":"lo-ssh-10","address":"10.253.0.10/32","comment":"LAB1-ITIEL13 N=10","disabled":"false","dynamic":"false","interface":"lo-ssh-10","invalid":"false","network":"10.253.0.10","slave":"false","vrf":"main"}]
+GET /rest/ip/route?dst-address=0.0.0.0/0
+[{".id":"*80000001","active":"true","distance":"1","dst-address":"0.0.0.0/0","dynamic":"false","gateway":"10.60.30.1","immediate-gw":"10.60.30.1%ether1","inactive":"false","routing-table":"main","scope":"30","static":"true","target-scope":"10"}]
+GET /rest/system/identity
+{"name":"CHR"}
+GET /rest/system/resource
+{"architecture-name":"x86_64","board-name":"CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)","build-time":"2026-09-16 12:19:15","cpu":"QEMU","cpu-count":"1","cpu-frequency":"2496","cpu-load":"0","factory-software":"7.1","free-hdd-space":"72548352","free-memory":"176099328","platform":"MikroTik","total-hdd-space":"93564928","total-memory":"402653184","uptime":"5m32s","version":"7.23.7 (long-term)","write-sect-since-reboot":"1024","write-sect-total":"1024"}
+GET /rest/ip/address
+[{".id":"*1","actual-interface":"ether1","address":"10.60.30.202/24","disabled":"false","dynamic":"false","interface":"ether1","invalid":"false","network":"10.60.30.0","slave":"false","vrf":"main"},{".id":"*2","actual-interface":"ether8","address":"172.16.20.1/24","disabled":"false","dynamic":"false","interface":"ether8","invalid":"false","network":"172.16.20.0","slave":"false","vrf":"main"},{".id":"*4","actual-interface":"lo-ssh-10","address":"10.253.0.10/32","comment":"LAB1-ITIEL13 N=10","disabled":"false","dynamic":"false","interface":"lo-ssh-10","invalid":"false","network":"10.253.0.10","slave":"false","vrf":"main"}]
+GET /rest/ip/route?dst-address=0.0.0.0/0
+[{".id":"*80000001","active":"true","distance":"1","dst-address":"0.0.0.0/0","dynamic":"false","gateway":"10.60.30.1","immediate-gw":"10.60.30.1%ether1","inactive":"false","routing-table":"main","scope":"30","static":"true","target-scope":"10"}]
+GET /rest/system/identity
+{"name":"CHR"}
+GET /rest/system/resource
+{"architecture-name":"x86_64","board-name":"CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)","build-time":"2026-09-16 12:19:15","cpu":"QEMU","cpu-count":"1","cpu-frequency":"2496","cpu-load":"0","factory-software":"7.1","free-hdd-space":"72548352","free-memory":"176037888","platform":"MikroTik","total-hdd-space":"93564928","total-memory":"402653184","uptime":"5m42s","version":"7.23.7 (long-term)","write-sect-since-reboot":"1056","write-sect-total":"1056"}
+GET /rest/ip/address
+[{".id":"*1","actual-interface":"ether1","address":"10.60.30.202/24","disabled":"false","dynamic":"false","interface":"ether1","invalid":"false","network":"10.60.30.0","slave":"false","vrf":"main"},{".id":"*2","actual-interface":"ether8","address":"172.16.20.1/24","disabled":"false","dynamic":"false","interface":"ether8","invalid":"false","network":"172.16.20.0","slave":"false","vrf":"main"},{".id":"*4","actual-interface":"lo-ssh-10","address":"10.253.0.10/32","comment":"LAB1-ITIEL13 N=10","disabled":"false","dynamic":"false","interface":"lo-ssh-10","invalid":"false","network":"10.253.0.10","slave":"false","vrf":"main"}]
+GET /rest/ip/route?dst-address=0.0.0.0/0
+[{".id":"*80000001","active":"true","distance":"1","dst-address":"0.0.0.0/0","dynamic":"false","gateway":"10.60.30.1","immediate-gw":"10.60.30.1%ether1","inactive":"false","routing-table":"main","scope":"30","static":"true","target-scope":"10"}]
+GET /rest/system/identity
+{"name":"CHR"}
+GET /rest/system/resource
+{"architecture-name":"x86_64","board-name":"CHR QEMU Ubuntu 24.04 PC v2 (i440FX + PIIX, arch_caps fix, 1996)","build-time":"2026-09-16 12:19:15","cpu":"QEMU","cpu-count":"1","cpu-frequency":"2496","cpu-load":"1","factory-software":"7.1","free-hdd-space":"72548352","free-memory":"176107520","platform":"MikroTik","total-hdd-space":"93564928","total-memory":"402653184","uptime":"6m58s","version":"7.23.7 (long-term)","write-sect-since-reboot":"1096","write-sect-total":"1096"}
+GET /rest/ip/address
+[{".id":"*1","actual-interface":"ether1","address":"10.60.30.202/24","disabled":"false","dynamic":"false","interface":"ether1","invalid":"false","network":"10.60.30.0","slave":"false","vrf":"main"},{".id":"*2","actual-interface":"ether8","address":"172.16.20.1/24","disabled":"false","dynamic":"false","interface":"ether8","invalid":"false","network":"172.16.20.0","slave":"false","vrf":"main"},{".id":"*4","actual-interface":"lo-ssh-10","address":"10.253.0.10/32","comment":"LAB1-ITIEL13 N=10","disabled":"false","dynamic":"false","interface":"lo-ssh-10","invalid":"false","network":"10.253.0.10","slave":"false","vrf":"main"}]
+GET /rest/ip/route?dst-address=0.0.0.0/0
+[{".id":"*80000001","active":"true","distance":"1","dst-address":"0.0.0.0/0","dynamic":"false","gateway":"10.60.30.1","immediate-gw":"10.60.30.1%ether1","inactive":"false","routing-table":"main","scope":"30","static":"true","target-scope":"10"}]
