@@ -14,6 +14,9 @@ Qué hace
     6. Solo en equipos con rol=escritura (MikroTik): asegura de forma
        IDEMPOTENTE la interfaz lo-ssh-<N> (bridge sin puertos) con la IP
        10.253.0.<N>/32 y un comentario identificador del laboratorio.
+    7. EXTRA (+10): el mismo MikroTik puede consultarse por su API REST
+       (/rest, JSON sobre HTTPS autofirmado) si el inventario lo define así,
+       de modo que SSH y REST conviven en el mismo inventario.
 
 Topología (laboratorio GNS3, red 10.60.30.0/24, gw .1)
     MikroTik RouterOS v7  10.60.30.202  rol: escritura  usuario: lab-ssh
@@ -58,6 +61,17 @@ except Exception:  # pragma: no cover - netmiko ausente
     NetmikoTimeoutException = Exception  # type: ignore[assignment]
     NetmikoAuthenticationException = Exception  # type: ignore[assignment]
 
+# EXTRA (+10): el MikroTik también se puede consultar por su API REST (/rest,
+# JSON sobre HTTPS). Necesita 'requests'; si falta, solo fallan los equipos REST.
+try:
+    import requests
+    from urllib3.exceptions import InsecureRequestWarning
+
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+except Exception:  # pragma: no cover - requests ausente
+    requests = None  # type: ignore[assignment]
+    InsecureRequestWarning = Exception  # type: ignore[assignment]
+
 
 BASE = Path(__file__).resolve().parent
 LOG_DIR = BASE / "logs"
@@ -67,6 +81,9 @@ REPORTE_JSON = BASE / "reporte_estado.json"
 ETIQUETA = "LAB1-ITIEL13"
 
 ROLES_VALIDOS = ("lectura", "escritura")
+
+# device_type que NO usan Netmiko/SSH sino la API REST de RouterOS.
+REST_TYPES = ("mikrotik_rest",)
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +106,16 @@ COMMANDS: dict[str, dict[str, Any]] = {
             "uptime": "show version | include uptime",
             "interfaces": "show ip interface brief",
             "default_route": "show ip route 0.0.0.0",
+        },
+    },
+    # EXTRA: mismo MikroTik, pero por su API REST (rutas del recurso /rest).
+    "mikrotik_rest": {
+        "enable": False,
+        "comandos": {
+            "hostname": "/rest/system/identity",
+            "uptime": "/rest/system/resource",
+            "interfaces": "/rest/ip/address",
+            "default_route": "/rest/ip/route?dst-address=0.0.0.0/0",
         },
     },
 }
@@ -246,6 +273,52 @@ def parse_cisco_default_route(texto: str) -> dict[str, Any]:
     return {"gateway": gateway, "network": red} if gateway or red else {}
 
 
+# --- Parsers de la API REST: reciben JSON ya decodificado (dict/list) --------
+def parse_rest_identity(datos: Any) -> dict[str, str]:
+    """/rest/system/identity -> {'name': 'CHR'}."""
+    return {"name": str(datos.get("name", ""))} if isinstance(datos, dict) else {}
+
+
+def parse_rest_resource(datos: Any) -> dict[str, str]:
+    """/rest/system/resource -> {'uptime': ..., 'version': ..., ...}."""
+    if not isinstance(datos, dict):
+        return {}
+    claves = ("uptime", "version", "architecture-name", "cpu", "cpu-count", "free-memory", "total-memory")
+    return {k: datos[k] for k in claves if k in datos}
+
+
+def parse_rest_addresses(datos: Any) -> list[dict[str, str]]:
+    """/rest/ip/address -> [{'address': ..., 'interface': ...}, ...]."""
+    if not isinstance(datos, list):
+        return []
+    direcciones = []
+    for registro in datos:
+        if isinstance(registro, dict) and "address" in registro:
+            direcciones.append(
+                {
+                    "address": registro.get("address", ""),
+                    "interface": registro.get("interface", ""),
+                    "network": registro.get("network", ""),
+                    "comment": registro.get("comment", ""),
+                }
+            )
+    return direcciones
+
+
+def parse_rest_default_route(datos: Any) -> dict[str, Any]:
+    """/rest/ip/route?dst-address=0.0.0.0/0 -> {'gateway': ..., 'active': ...}."""
+    if not isinstance(datos, list):
+        return {}
+    for registro in datos:
+        if isinstance(registro, dict) and registro.get("dst-address") == "0.0.0.0/0":
+            return {
+                "gateway": registro.get("gateway", ""),
+                "distance": registro.get("distance", ""),
+                "active": str(registro.get("active", "")).lower() == "true",
+            }
+    return {}
+
+
 PARSERS: dict[str, dict[str, Callable[[str], Any]]] = {
     "mikrotik_routeros": {
         "hostname": parse_mikrotik_identity,
@@ -258,6 +331,13 @@ PARSERS: dict[str, dict[str, Callable[[str], Any]]] = {
         "uptime": parse_cisco_uptime,
         "interfaces": parse_cisco_interfaces,
         "default_route": parse_cisco_default_route,
+    },
+    # EXTRA: los parsers REST reciben el JSON ya decodificado, no texto.
+    "mikrotik_rest": {
+        "hostname": parse_rest_identity,
+        "uptime": parse_rest_resource,
+        "interfaces": parse_rest_addresses,
+        "default_route": parse_rest_default_route,
     },
 }
 
@@ -351,18 +431,69 @@ def conectar_equipo(params: dict[str, Any], requiere_enable: bool) -> Any:
     return conn
 
 
+class RouterOSRest:
+    """Cliente mínimo de la API REST de RouterOS (/rest, JSON sobre HTTPS).
+
+    EXTRA (+10): permite consultar el mismo MikroTik por REST en vez de SSH.
+    El certificado del laboratorio es autofirmado, así que se desactiva la
+    verificación TLS (verify=False); la advertencia de urllib3 ya se silenció.
+    Escribe en logs/<nombre>.log para que cada equipo tenga su session_log.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        usuario: str,
+        password: str,
+        log_path: Path | None = None,
+        timeout: int = 20,
+    ) -> None:
+        if requests is None:
+            raise RuntimeError("Falta 'requests' (pip install -r requirements.txt)")
+        self.base = f"https://{host}:{int(port)}"
+        self.timeout = int(timeout)
+        self.log_path = log_path
+        self.sesion = requests.Session()
+        self.sesion.auth = (usuario, password)
+        self.sesion.verify = False  # certificado autofirmado del laboratorio
+        self.sesion.headers.update({"Accept": "application/json"})
+
+    def _registrar(self, texto: str) -> None:
+        if not self.log_path:
+            return
+        with self.log_path.open("a", encoding="utf-8") as archivo:
+            archivo.write(texto + "\n")
+
+    def get(self, ruta: str) -> Any:
+        """GET a un recurso /rest y devuelve el JSON ya decodificado."""
+        self._registrar(f"GET {ruta}")
+        respuesta = self.sesion.get(f"{self.base}{ruta}", timeout=self.timeout)
+        respuesta.raise_for_status()
+        self._registrar(respuesta.text)
+        return respuesta.json()
+
+    def disconnect(self) -> None:
+        self.sesion.close()
+
+
 # ---------------------------------------------------------------------------
 # R4: recolección de estado
 # ---------------------------------------------------------------------------
 def recolectar_estado(conn: Any, device_type: str) -> dict[str, Any]:
-    """Ejecuta los comandos del device_type y devuelve datos ya parseados."""
+    """Ejecuta los comandos del device_type y devuelve datos ya parseados.
+
+    Sirve para SSH (conn.send_command -> texto) y para la API REST
+    (conn.get -> JSON); cada parser recibe lo que devuelva el transporte.
+    """
     ficha = COMMANDS[device_type]
     parsers = PARSERS[device_type]
+    es_rest = device_type in REST_TYPES
     datos: dict[str, Any] = {}
-    for clave, comando in ficha["comandos"].items():
+    for clave, objetivo in ficha["comandos"].items():
         try:
-            salida = conn.send_command(comando)
-            datos[clave] = parsers[clave](salida)
+            crudo = conn.get(objetivo) if es_rest else conn.send_command(objetivo)
+            datos[clave] = parsers[clave](crudo)
         except Exception as error:  # un parser roto no derriba el inventario
             datos[clave] = None
             datos[f"{clave}_error"] = f"{type(error).__name__}: {error}"
@@ -586,8 +717,9 @@ def procesar_equipo(
     LOG_DIR.mkdir(exist_ok=True)
     log_path = LOG_DIR / f"{equipo['nombre']}.log"
 
-    password = obtener_credencial(equipo["nombre"])
-    params = parametros_conexion(equipo, password, log_path)
+    # Un equipo REST puede reutilizar la credencial de otro (campo 'credencial'
+    # del YAML) para no duplicar el secreto ni una variable de entorno.
+    password = obtener_credencial(equipo.get("credencial") or equipo["nombre"])
 
     resultado: dict[str, Any] = {
         "nombre": equipo["nombre"],
@@ -601,7 +733,18 @@ def procesar_equipo(
 
     conn = None
     try:
-        conn = conectar_equipo(params, ficha["enable"])
+        if device_type in REST_TYPES:
+            conn = RouterOSRest(
+                equipo["host"],
+                equipo.get("port", 443),
+                equipo["usuario"],
+                password,
+                log_path=log_path,
+                timeout=int(equipo.get("conn_timeout", 20)),
+            )
+        else:
+            params = parametros_conexion(equipo, password, log_path)
+            conn = conectar_equipo(params, ficha["enable"])
 
         if args.estado:
             resultado["datos"] = recolectar_estado(conn, device_type)
@@ -689,15 +832,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
-    if ConnectHandler is None:
-        print("ERROR: netmiko no está instalado (pip install -r requirements.txt)", file=sys.stderr)
-        return 1
-
     try:
         equipos = cargar_inventario(Path(args.inventario))
         validar_inventario(equipos)
     except (OSError, ValueError, yaml.YAMLError) as error:
         print(f"ERROR de inventario: {error}", file=sys.stderr)
+        return 1
+
+    necesita_netmiko = any(e["device_type"] not in REST_TYPES for e in equipos)
+    necesita_requests = any(e["device_type"] in REST_TYPES for e in equipos)
+    if necesita_netmiko and ConnectHandler is None:
+        print("ERROR: netmiko no está instalado (pip install -r requirements.txt)", file=sys.stderr)
+        return 1
+    if necesita_requests and requests is None:
+        print("ERROR: 'requests' no está instalado (pip install -r requirements.txt)", file=sys.stderr)
         return 1
 
     print(f"Equipos en el inventario: {len(equipos)}"
